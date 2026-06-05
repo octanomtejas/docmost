@@ -56,7 +56,10 @@ function buildSpaceWriterAbility() {
   can(SpaceCaslAction.Read, SpaceCaslSubject.Settings);
   can(SpaceCaslAction.Read, SpaceCaslSubject.Member);
   can(SpaceCaslAction.Manage, SpaceCaslSubject.Page);
-  can(SpaceCaslAction.Manage, SpaceCaslSubject.Share);
+  // Writers can view existing public shares but cannot create/manage them.
+  // Creating a public share (exposing a page to the open internet) is restricted
+  // to space admins. See share.controller.ts for enforcement.
+  can(SpaceCaslAction.Read, SpaceCaslSubject.Share);
   return build();
 }
 

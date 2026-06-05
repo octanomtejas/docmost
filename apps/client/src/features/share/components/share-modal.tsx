@@ -29,6 +29,11 @@ import useTrial from "@/ee/hooks/use-trial.tsx";
 import { useAtom } from "jotai";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { useSpaceQuery } from "@/features/space/queries/space-query.ts";
+import { useSpaceAbility } from "@/features/space/permissions/use-space-ability.ts";
+import {
+  SpaceCaslAction,
+  SpaceCaslSubject,
+} from "@/features/space/permissions/permissions.type.ts";
 
 interface ShareModalProps {
   readOnly: boolean;
@@ -48,6 +53,13 @@ export default function ShareModal({ readOnly }: ShareModalProps) {
   const workspaceDisabled = workspace?.settings?.sharing?.disabled === true;
   const spaceDisabled = space?.settings?.sharing?.disabled === true;
   const sharingDisabled = workspaceDisabled || spaceDisabled;
+  // Only space admins may create/manage public shares.
+  const spaceAbility = useSpaceAbility(space?.membership?.permissions);
+  const canManageShare = spaceAbility.can(
+    SpaceCaslAction.Manage,
+    SpaceCaslSubject.Share,
+  );
+  const sharingReadOnly = readOnly || !canManageShare;
   const createShareMutation = useCreateShareMutation();
   const updateShareMutation = useUpdateShareMutation();
   const deleteShareMutation = useDeleteShareMutation();
@@ -240,7 +252,7 @@ export default function ShareModal({ readOnly }: ShareModalProps) {
               <Switch
                 onChange={handleChange}
                 defaultChecked={isPagePublic}
-                disabled={readOnly}
+                disabled={sharingReadOnly}
                 size="xs"
               />
             </Group>
@@ -260,7 +272,7 @@ export default function ShareModal({ readOnly }: ShareModalProps) {
                     onChange={handleSubPagesChange}
                     checked={share.includeSubPages}
                     size="xs"
-                    disabled={readOnly}
+                    disabled={sharingReadOnly}
                   />
                 </Group>
                 <Group justify="space-between" wrap="nowrap" gap="xl" mt="sm">
@@ -274,7 +286,7 @@ export default function ShareModal({ readOnly }: ShareModalProps) {
                     onChange={handleIndexSearchChange}
                     checked={share.searchIndexing}
                     size="xs"
-                    disabled={readOnly}
+                    disabled={sharingReadOnly}
                   />
                 </Group>
               </>
