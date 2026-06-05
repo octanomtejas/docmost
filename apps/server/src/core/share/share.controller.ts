@@ -35,6 +35,11 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
+import SpaceAbilityFactory from '../casl/abilities/space-ability.factory';
+import {
+  SpaceCaslAction,
+  SpaceCaslSubject,
+} from '../casl/interfaces/space-ability.type';
 
 @UseGuards(JwtAuthGuard)
 @Controller('shares')
@@ -46,8 +51,20 @@ export class ShareController {
     private readonly pagePermissionRepo: PagePermissionRepo,
     private readonly pageAccessService: PageAccessService,
     private readonly licenseCheckService: LicenseCheckService,
+    private readonly spaceAbility: SpaceAbilityFactory,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
+
+  // Only space admins may create, update, or delete public shares.
+  // Writers can edit pages but must not be able to expose them externally.
+  private async validateCanManageShare(user: User, spaceId: string) {
+    const ability = await this.spaceAbility.createForUser(user, spaceId);
+    if (ability.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Share)) {
+      throw new ForbiddenException(
+        'Only space admins can manage public shares',
+      );
+    }
+  }
 
   @HttpCode(HttpStatus.OK)
   @Post('/')
@@ -160,6 +177,9 @@ export class ShareController {
     // rather, use space level permission and workspace/space level sharing restriction
     await this.pageAccessService.validateCanEdit(page, user);
 
+    // Only space admins may create a public share
+    await this.validateCanManageShare(user, page.spaceId);
+
     // Prevent sharing restricted pages
     const isRestricted = await this.pagePermissionRepo.hasRestrictedAncestor(
       page.id,
@@ -214,6 +234,9 @@ export class ShareController {
     // User must be able to edit the page to update its share
     await this.pageAccessService.validateCanEdit(page, user);
 
+    // Only space admins may update a public share
+    await this.validateCanManageShare(user, page.spaceId);
+
     return this.shareService.updateShare(share.id, updateShareDto);
   }
 
@@ -233,6 +256,9 @@ export class ShareController {
 
     // User must be able to edit the page to delete its share
     await this.pageAccessService.validateCanEdit(page, user);
+
+    // Only space admins may delete a public share
+    await this.validateCanManageShare(user, page.spaceId);
 
     await this.shareRepo.deleteShare(share.id);
 

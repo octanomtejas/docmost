@@ -23,6 +23,12 @@ import {
   useUpdateShareMutation,
 } from "@/features/share/queries/share-query";
 import useTrial from "@/ee/hooks/use-trial";
+import { useSpaceQuery } from "@/features/space/queries/space-query";
+import { useSpaceAbility } from "@/features/space/permissions/use-space-ability";
+import {
+  SpaceCaslAction,
+  SpaceCaslSubject,
+} from "@/features/space/permissions/permissions.type";
 
 type PublishTabProps = {
   pageId: string;
@@ -42,6 +48,17 @@ export function PublishTab({ pageId, readOnly, isRestricted, workspaceSharingDis
   const createShareMutation = useCreateShareMutation();
   const updateShareMutation = useUpdateShareMutation();
   const deleteShareMutation = useDeleteShareMutation();
+
+  // Only space admins may publish/manage public shares. Writers can view an
+  // existing share's link (Read Share) but cannot toggle sharing on/off.
+  const { data: space } = useSpaceQuery(spaceSlug);
+  const spaceAbility = useSpaceAbility(space?.membership?.permissions);
+  const canManageShare = spaceAbility.can(
+    SpaceCaslAction.Manage,
+    SpaceCaslSubject.Share,
+  );
+  // Switches are disabled when the page is read-only OR the user can't manage shares.
+  const sharingReadOnly = readOnly || !canManageShare;
 
   const pageIsShared = share && share.level === 0;
   const isDescendantShared = share && share.level > 0;
@@ -165,6 +182,21 @@ export function PublishTab({ pageId, readOnly, isRestricted, workspaceSharingDis
     );
   }
 
+  // No public-share permission and nothing is shared yet: explain, don't offer a toggle.
+  if (!canManageShare && !pageIsShared && !isDescendantShared) {
+    return (
+      <Stack align="center" py="md">
+        <IconLock size={20} stroke={1.5} />
+        <Text size="sm" ta="center" fw={500}>
+          {t("You can't publish this page")}
+        </Text>
+        <Text size="sm" c="dimmed" ta="center">
+          {t("Only space admins can share pages publicly.")}
+        </Text>
+      </Stack>
+    );
+  }
+
   if (isDescendantShared) {
     return (
       <Stack gap="sm">
@@ -211,7 +243,7 @@ export function PublishTab({ pageId, readOnly, isRestricted, workspaceSharingDis
         <Switch
           onChange={handleChange}
           checked={isPagePublic}
-          disabled={readOnly}
+          disabled={sharingReadOnly}
           size="xs"
         />
       </Group>
@@ -230,7 +262,7 @@ export function PublishTab({ pageId, readOnly, isRestricted, workspaceSharingDis
               onChange={handleSubPagesChange}
               checked={share.includeSubPages}
               size="xs"
-              disabled={readOnly}
+              disabled={sharingReadOnly}
             />
           </Group>
           <Group justify="space-between" wrap="nowrap" gap="xl">
@@ -244,7 +276,7 @@ export function PublishTab({ pageId, readOnly, isRestricted, workspaceSharingDis
               onChange={handleIndexSearchChange}
               checked={share.searchIndexing}
               size="xs"
-              disabled={readOnly}
+              disabled={sharingReadOnly}
             />
           </Group>
         </>
